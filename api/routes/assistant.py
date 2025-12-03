@@ -90,9 +90,16 @@ Format responses with:
             overview = await service.get_portfolio_overview()
             context["portfolio_overview"] = overview
 
-            # Get top tokens
-            tokens = await service.fetch_all_tokens()
-            context["top_tokens"] = tokens[:10]  # Top 10 by market cap
+            # Get all tokens (needed for specific token queries)
+            all_tokens = await service.fetch_all_tokens()
+            context["top_tokens"] = all_tokens[:10]  # Top 10 by market cap for overview
+
+            # Store full token list for specific lookups
+            context["all_tokens_summary"] = [
+                {"symbol": t.get("symbol"), "price": t.get("price"), "market_cap": t.get("market_cap"),
+                 "price_change_24h": t.get("price_change_24h"), "team": t.get("team")}
+                for t in all_tokens
+            ]
         except Exception as e:
             context["portfolio_error"] = str(e)
 
@@ -119,9 +126,25 @@ Format responses with:
             except Exception as e:
                 context["campaigns_error"] = str(e)
 
-        # If asking about specific token
+        # If asking about specific token - all 65 token symbols
+        ALL_TOKEN_SYMBOLS = [
+            "CHZ", "BAR", "ATM", "VCF", "SEVILLA",  # La Liga
+            "JUV", "ACM", "ASR", "LAZIO", "INTER", "NAP", "UDI",  # Serie A
+            "CITY", "AFC", "SPURS", "EFC", "AVL",  # Premier League
+            "PSG", "ASM",  # Ligue 1
+            "PORTO", "BENFICA",  # Portugal
+            "GAL", "TRA", "GOZ", "SAM", "ALA", "IBFK", "BJK", "FB",  # Turkey
+            "SANTOS", "MENGO", "FLU", "SCCP", "SPFC", "GALO", "VERDAO", "VASCO", "BAHIA", "SACI",  # Brazil
+            "ARG", "CAI",  # Argentina
+            "LEG", "TIGRES", "YBO", "STV",  # Other
+            "POR", "ITA", "VATRENI", "SNFT", "BFT",  # National Teams
+            "ALPINE", "SAUBER", "AM",  # F1
+            "UFC", "PFL",  # MMA
+            "OG", "NAVI", "ALL", "TH", "DOJO",  # Esports
+            "MODRIC",  # Individual
+        ]
         for word in query_lower.split():
-            if len(word) >= 2 and word.upper() in ["CHZ", "BAR", "PSG", "JUV", "ATM", "ACM", "ASR", "CITY", "INTER", "NAP", "GAL", "OG", "MENGO"]:
+            if len(word) >= 2 and word.upper() in ALL_TOKEN_SYMBOLS:
                 symbol = word.upper()
                 try:
                     # Get token details
