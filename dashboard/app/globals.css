@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --chiliz-red: #CD0124;
+  --chiliz-dark: #1a1a2e;
+  --chiliz-darker: #0f0f1a;
+}
+
+body {
+  background: linear-gradient(135deg, var(--chiliz-darker) 0%, #1a1a2e 100%);
+}
+
+/* Grade colors */
+.grade-a { color: #22c55e; }
+.grade-b { color: #84cc16; }
+.grade-c { color: #eab308; }
+.grade-d { color: #f97316; }
+.grade-f { color: #ef4444; }
+
+/* Card styles */
+.card {
+  @apply bg-chiliz-dark rounded-xl border border-gray-800 p-6;
+}
+
+.card-hover {
+  @apply card transition-all hover:border-chiliz-red/50 hover:shadow-lg hover:shadow-chiliz-red/10;
+}
+
+/* Health score badge */
+.health-badge {
+  @apply inline-flex items-center justify-center w-12 h-12 rounded-full font-bold text-xl;
+}
+
+.health-badge-a { @apply bg-green-500/20 text-green-400; }
+.health-badge-b { @apply bg-lime-500/20 text-lime-400; }
+.health-badge-c { @apply bg-yellow-500/20 text-yellow-400; }
+.health-badge-d { @apply bg-orange-500/20 text-orange-400; }
+.health-badge-f { @apply bg-red-500/20 text-red-400; }
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--chiliz-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}

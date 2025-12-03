@@ -1,0 +1,40 @@
+# Chiliz Marketing Intelligence v3.0 - Dependencies
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+
+# Database
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# HTTP Client
+aiohttp==3.9.1
+httpx==0.26.0
+
+# Data Processing
+numpy==1.26.3
+pandas==2.1.4
+
+# Utilities
+python-dotenv==1.0.0
+python-dateutil==2.8.2
+pytz==2024.1
+
+# Scheduling
+apscheduler==3.10.4
+
+# Slack Integration
+slack-sdk==3.26.2
+
+# Web3 / Blockchain
+web3==6.15.1
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+
+# Development
+black==24.1.0
+ruff==0.1.13
