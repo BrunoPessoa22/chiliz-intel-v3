@@ -290,6 +290,10 @@ async def generate_signals():
     liquidity_signals = await _check_liquidity_issues()
     signals.extend(liquidity_signals)
 
+    # 6. Social Activity Spikes (Twitter)
+    social_signals = await _check_social_spikes()
+    signals.extend(social_signals)
+
     # Insert new signals
     for signal in signals:
         await _insert_signal(signal)
@@ -517,6 +521,85 @@ async def _check_liquidity_issues() -> List[Dict]:
     return signals
 
 
+async def _check_social_spikes() -> List[Dict]:
+    """Check for unusual Twitter/social activity spikes"""
+    signals = []
+
+    # Check for tweet count spikes (3x average)
+    query = """
+        WITH recent_avg AS (
+            SELECT
+                token_id,
+                AVG(mention_count_24h) as avg_mentions
+            FROM social_metrics
+            WHERE time > NOW() - INTERVAL '7 days'
+            GROUP BY token_id
+        ),
+        current_metrics AS (
+            SELECT DISTINCT ON (token_id)
+                token_id,
+                mention_count_24h as current_mentions,
+                engagement_total as current_engagement,
+                influencer_mentions
+            FROM social_metrics
+            ORDER BY token_id, time DESC
+        )
+        SELECT
+            ft.id as token_id,
+            ft.symbol,
+            cm.current_mentions,
+            ra.avg_mentions,
+            cm.current_mentions / NULLIF(ra.avg_mentions, 0) as mention_ratio,
+            cm.current_engagement,
+            cm.influencer_mentions
+        FROM fan_tokens ft
+        JOIN current_metrics cm ON ft.id = cm.token_id
+        LEFT JOIN recent_avg ra ON ft.id = ra.token_id
+        WHERE ft.is_active = true
+    """
+
+    try:
+        rows = await Database.fetch(query)
+    except Exception as e:
+        print(f"Social spike check failed: {e}")
+        return signals
+
+    for row in rows:
+        mention_ratio = float(row["mention_ratio"] or 1)
+        current_mentions = int(row["current_mentions"] or 0)
+        avg_mentions = float(row["avg_mentions"] or 0)
+        influencer_mentions = int(row["influencer_mentions"] or 0)
+        symbol = row["symbol"]
+
+        # Social Spike: 3x more mentions than average
+        if mention_ratio >= 3 and current_mentions > 10:
+            signals.append({
+                "token_id": row["token_id"],
+                "signal_type": "social_spike",
+                "direction": "bullish",
+                "confidence": min(0.85, 0.5 + (mention_ratio - 3) / 10),
+                "title": f"📱 {symbol} Social Spike ({mention_ratio:.1f}x normal)",
+                "description": f"{symbol} has {current_mentions} mentions in the last 24h ({mention_ratio:.1f}x the 7-day average of {avg_mentions:.0f}). High social activity often precedes price movement.",
+                "time_horizon": "short",
+                "management_priority": "high",
+            })
+
+        # Influencer Alert: Multiple influencer mentions
+        if influencer_mentions >= 3:
+            signals.append({
+                "token_id": row["token_id"],
+                "signal_type": "influencer_mentions",
+                "direction": "bullish",
+                "confidence": min(0.80, 0.4 + influencer_mentions / 10),
+                "title": f"🌟 {symbol} Influencer Activity ({influencer_mentions} mentions)",
+                "description": f"{symbol} was mentioned by {influencer_mentions} influencers (accounts >100k followers) in the last 24h. This often drives retail interest.",
+                "time_horizon": "short",
+                "management_priority": "high",
+            })
+
+    return signals
+
+
 async def _insert_signal(signal: Dict):
     """Insert a new signal, avoiding duplicates"""
     # Check for recent similar signal
@@ -565,6 +648,8 @@ async def _send_slack_alert(signal: Dict):
         "holder_exodus": "🚪",
         "holder_growth": "📈",
         "liquidity_warning": "💧",
+        "social_spike": "📱",
+        "influencer_mentions": "🌟",
     }
     emoji = emoji_map.get(signal.get("signal_type", ""), "🔔")
 
