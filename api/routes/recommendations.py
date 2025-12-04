@@ -120,6 +120,19 @@ async def send_new_recommendations_to_slack():
                     notifications_sent += 1
                     new_recommendations.append(symbol)
 
+        # Check campaign_soon recommendations (notify for new opportunities)
+        for rec in recommendations.get("campaign_soon", []):
+            symbol = rec["symbol"]
+            rec_type = rec["type"]
+            cache_key = f"{symbol}_{rec_type}"
+
+            if cache_key not in _notified_cache:
+                success = await send_recommendation_alert(rec)
+                if success:
+                    _notified_cache[cache_key] = datetime.now(timezone.utc)
+                    notifications_sent += 1
+                    new_recommendations.append(symbol)
+
         # Check avoid recommendations (high priority - always notify)
         for rec in recommendations.get("avoid", []):
             symbol = rec["symbol"]
