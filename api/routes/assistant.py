@@ -156,14 +156,27 @@ Format responses with:
                     if token:
                         context["focused_token"] = dict(token)
 
-                        # Get social metrics
+                        # Get social metrics from social_signals table (live data)
                         social = await Database.fetchrow("""
-                            SELECT tweet_count_24h, sentiment_score, engagement_total
-                            FROM social_metrics WHERE token_id = $1
-                            ORDER BY time DESC LIMIT 1
+                            SELECT
+                                COUNT(*) as tweet_count_24h,
+                                AVG(sentiment_score) as sentiment_score,
+                                SUM(engagement) as engagement_total,
+                                SUM(CASE WHEN is_high_priority THEN 1 ELSE 0 END) as high_priority_count,
+                                SUM(CASE WHEN sentiment_score > 0.6 THEN 1 ELSE 0 END) as positive_count,
+                                SUM(CASE WHEN sentiment_score < 0.4 THEN 1 ELSE 0 END) as negative_count
+                            FROM social_signals
+                            WHERE token_id = $1 AND time > NOW() - INTERVAL '24 hours'
                         """, token["id"])
-                        if social:
-                            context["token_social"] = dict(social)
+                        if social and social["tweet_count_24h"]:
+                            context["token_social"] = {
+                                "tweet_count_24h": social["tweet_count_24h"],
+                                "sentiment_score": float(social["sentiment_score"]) if social["sentiment_score"] else 0.5,
+                                "engagement_total": social["engagement_total"] or 0,
+                                "high_priority_count": social["high_priority_count"] or 0,
+                                "positive_count": social["positive_count"] or 0,
+                                "negative_count": social["negative_count"] or 0,
+                            }
 
                         # Get correlation for this token
                         from services.correlation_engine import CorrelationEngine
