@@ -92,7 +92,10 @@ INSERT INTO fan_tokens (symbol, name, team, league, country, coingecko_id, is_ac
     ('DOJO', 'Ninjas in Pyjamas Fan Token', 'Ninjas in Pyjamas', 'Esports', 'Sweden', 'ninjas-in-pyjamas', true),
 
     -- Individual
-    ('MODRIC', 'Luka Modric Fan Token', 'Luka Modric', 'Individual', 'Croatia', 'luka-modric', true)
+    ('MODRIC', 'Luka Modric Fan Token', 'Luka Modric', 'Individual', 'Croatia', 'luka-modric', true),
+
+    -- Chiliz Chain Native
+    ('PEPPER', 'PEPPER', 'Chiliz Meme', 'Meme', NULL, 'pepper', true)
 
 ON CONFLICT (symbol) DO UPDATE SET
     name = EXCLUDED.name,

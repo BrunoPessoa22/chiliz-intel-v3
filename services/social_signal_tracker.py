@@ -266,6 +266,8 @@ class SocialSignalTracker:
             'NAVI', 'ALL', 'TH', 'DOJO',
             # Other
             'VCF', 'SEVILLA', 'ASM', 'LEG', 'TIGRES', 'YBO', 'CAI', 'MODRIC',
+            # Chiliz Chain Native
+            'PEPPER',
         ]
 
         # Filter to tokens that have search queries

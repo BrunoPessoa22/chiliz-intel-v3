@@ -155,6 +155,9 @@ class XAPIConfig:
 
         # Individual
         "MODRIC": "luka modric fan token OR #ModricToken",
+
+        # Chiliz Chain Meme/Native
+        "PEPPER": "$PEPPER chiliz OR #PepperCoin OR pepper chiliz chain",
     })
 
 
@@ -291,6 +294,9 @@ FAN_TOKENS = [
 
     # Other/Individual
     {"symbol": "MODRIC", "name": "Luka Modric Fan Token", "team": "Luka Modric", "coingecko_id": "luka-modric", "league": "Individual", "country": "Croatia"},
+
+    # Chiliz Chain Native Tokens
+    {"symbol": "PEPPER", "name": "PEPPER", "team": "Chiliz Meme", "coingecko_id": "pepper", "league": "Meme", "country": None},
 ]
 
 # Exchange definitions

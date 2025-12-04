@@ -142,6 +142,7 @@ Format responses with:
             "UFC", "PFL",  # MMA
             "OG", "NAVI", "ALL", "TH", "DOJO",  # Esports
             "MODRIC",  # Individual
+            "PEPPER",  # Chiliz Chain Meme
         ]
         for word in query_lower.split():
             if len(word) >= 2 and word.upper() in ALL_TOKEN_SYMBOLS:
