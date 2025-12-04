@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from services.database import Database, init_db
 from services.live_data import cleanup_live_service
-from api.routes import tokens, executive, assistant, alerts, live, campaigns, whales, signals
+from api.routes import tokens, executive, assistant, alerts, live, campaigns, whales, signals, recommendations
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,6 +67,7 @@ app.include_router(live.router, prefix="/api/live", tags=["Live Data"])
 app.include_router(campaigns.router, prefix="/api/campaigns", tags=["Campaigns"])
 app.include_router(whales.router, prefix="/api/whales", tags=["Whale Tracking"])
 app.include_router(signals.router, prefix="/api/signals", tags=["Social Signals"])
+app.include_router(recommendations.router, prefix="/api/recommendations", tags=["AI Recommendations"])
 
 
 @app.get("/")
