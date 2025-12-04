@@ -238,16 +238,34 @@ class SocialSignalTracker:
         tokens = await get_all_tokens()
         all_signals = []
 
-        # Priority tokens - tier 1 (always query)
+        # Priority tokens - tier 1 (always query) - Core Chiliz tokens
         tier1_tokens = ['CHZ', 'BAR', 'PSG']
 
-        # Tier 2 tokens - rotate through these
+        # Tier 2 tokens - rotate through these (CHILIZ TOKENS ONLY - no Binance tokens)
+        # Excluded: SANTOS, LAZIO, PORTO, ALPINE (Binance fan tokens)
         tier2_tokens = [
-            'JUV', 'ATM', 'CITY', 'ACM', 'INTER', 'GAL', 'MENGO', 'OG',  # Major clubs
-            'FLU', 'SANTOS', 'SCCP', 'SPFC', 'GALO', 'VERDAO', 'VASCO',  # Brazilian
-            'LAZIO', 'NAP', 'ASR', 'AFC', 'SPURS',  # European
-            'TRA', 'FB', 'BJK', 'BENFICA', 'PORTO',  # Other major
-            'ARG', 'ALPINE', 'UFC',  # Other categories
+            # Major European clubs
+            'JUV', 'ATM', 'CITY', 'ACM', 'INTER', 'GAL', 'OG',
+            # Brazilian clubs (Chiliz)
+            'FLU', 'MENGO', 'SCCP', 'SPFC', 'GALO', 'VERDAO', 'VASCO', 'BAHIA', 'SACI',
+            # Italian (Chiliz only)
+            'NAP', 'ASR',
+            # English
+            'AFC', 'SPURS', 'EFC', 'AVL',
+            # Turkish
+            'TRA', 'FB', 'BJK', 'GOZ', 'SAM', 'ALA', 'IBFK',
+            # Portuguese (Chiliz only)
+            'BENFICA',
+            # National teams
+            'ARG', 'POR', 'ITA', 'VATRENI', 'SNFT', 'BFT',
+            # F1 (Chiliz only)
+            'SAUBER', 'AM',
+            # MMA
+            'UFC', 'PFL',
+            # Esports
+            'NAVI', 'ALL', 'TH', 'DOJO',
+            # Other
+            'VCF', 'SEVILLA', 'ASM', 'LEG', 'TIGRES', 'YBO', 'CAI', 'MODRIC',
         ]
 
         # Filter to tokens that have search queries
