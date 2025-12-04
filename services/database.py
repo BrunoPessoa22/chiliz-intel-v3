@@ -121,9 +121,11 @@ async def get_exchange_id(code: str) -> Optional[int]:
 
 
 async def get_all_tokens() -> List[Dict[str, Any]]:
-    """Get all active fan tokens"""
+    """Get all active Chiliz fan tokens (excludes Binance tokens)"""
     rows = await Database.fetch(
-        "SELECT id, symbol, name, team, coingecko_id FROM fan_tokens WHERE is_active = TRUE"
+        """SELECT id, symbol, name, team, coingecko_id FROM fan_tokens
+           WHERE is_active = TRUE
+           AND symbol NOT IN ('SANTOS', 'LAZIO', 'PORTO', 'ALPINE')"""
     )
     return [dict(row) for row in rows]
 

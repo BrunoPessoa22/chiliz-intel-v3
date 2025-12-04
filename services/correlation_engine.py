@@ -530,8 +530,11 @@ class CorrelationEngine:
 
     async def get_social_correlation_summary(self) -> Dict:
         """Get summary of social correlations for all tokens (dashboard endpoint)"""
+        # Exclude Binance tokens (SANTOS, LAZIO, PORTO, ALPINE) - only track Chiliz tokens
         tokens = await Database.fetch(
-            "SELECT id, symbol, team FROM fan_tokens WHERE is_active = true"
+            """SELECT id, symbol, team FROM fan_tokens
+               WHERE is_active = true
+               AND symbol NOT IN ('SANTOS', 'LAZIO', 'PORTO', 'ALPINE')"""
         )
 
         results = []
