@@ -160,6 +160,22 @@ class XAPIConfig:
         "PEPPER": "$PEPPER chiliz OR #PepperCoin OR pepper chiliz chain",
     })
 
+    # Transfer-related search queries (tracked separately)
+    transfer_queries: Dict[str, str] = field(default_factory=lambda: {
+        # General transfer news
+        "TRANSFERS": "(transfer OR signing OR loan OR rumor OR rumour) (barcelona OR juventus OR psg OR \"ac milan\" OR inter OR arsenal OR \"man city\")",
+
+        # Team-specific transfer queries
+        "BAR_TRANSFER": "barcelona (transfer OR signing OR loan OR rumor) -is:retweet",
+        "JUV_TRANSFER": "juventus (transfer OR signing OR loan OR rumor) -is:retweet",
+        "PSG_TRANSFER": "psg (transfer OR signing OR loan OR rumor) -is:retweet",
+        "ACM_TRANSFER": "\"ac milan\" (transfer OR signing OR loan OR rumor) -is:retweet",
+        "INTER_TRANSFER": "inter milan (transfer OR signing OR loan OR rumor) -is:retweet",
+        "CITY_TRANSFER": "\"man city\" (transfer OR signing OR loan OR rumor) -is:retweet",
+        "AFC_TRANSFER": "arsenal (transfer OR signing OR loan OR rumor) -is:retweet",
+        "GAL_TRANSFER": "galatasaray (transfer OR signing OR loan OR rumor) -is:retweet",
+    })
+
 
 @dataclass
 class OpenRouterConfig:
