@@ -234,27 +234,44 @@ class SocialSignalTracker:
         return signals
 
     async def collect_all_signals(self) -> int:
-        """Collect signals for all tokens"""
+        """Collect signals for all tokens with rotation"""
         tokens = await get_all_tokens()
         all_signals = []
 
-        # Priority tokens to query (most important first)
-        priority_tokens = ['CHZ', 'BAR', 'PSG', 'JUV', 'ATM', 'CITY', 'ACM', 'INTER', 'GAL', 'MENGO']
+        # Priority tokens - tier 1 (always query)
+        tier1_tokens = ['CHZ', 'BAR', 'PSG']
+
+        # Tier 2 tokens - rotate through these
+        tier2_tokens = [
+            'JUV', 'ATM', 'CITY', 'ACM', 'INTER', 'GAL', 'MENGO', 'OG',  # Major clubs
+            'FLU', 'SANTOS', 'SCCP', 'SPFC', 'GALO', 'VERDAO', 'VASCO',  # Brazilian
+            'LAZIO', 'NAP', 'ASR', 'AFC', 'SPURS',  # European
+            'TRA', 'FB', 'BJK', 'BENFICA', 'PORTO',  # Other major
+            'ARG', 'ALPINE', 'UFC',  # Other categories
+        ]
 
         # Filter to tokens that have search queries
         tokens_with_queries = [t for t in tokens if t["symbol"] in self.search_queries]
 
-        # Sort by priority
-        def sort_key(t):
-            try:
-                return priority_tokens.index(t["symbol"])
-            except ValueError:
-                return 999
+        # Always include tier 1
+        tier1_to_query = [t for t in tokens_with_queries if t["symbol"] in tier1_tokens]
 
-        tokens_with_queries.sort(key=sort_key)
+        # Rotate through tier 2 based on current hour (different tokens each collection)
+        from datetime import datetime
+        hour = datetime.now().hour
+        tier2_available = [t for t in tokens_with_queries if t["symbol"] in tier2_tokens]
 
-        # Limit to top 5 tokens to avoid rate limits (Basic tier: ~10 requests per 15 min)
-        tokens_to_query = tokens_with_queries[:5]
+        # Pick 2 tokens from tier 2 based on rotation
+        rotation_index = (hour % 12) * 2  # Changes every hour, cycles through ~24 tokens
+        tier2_to_query = tier2_available[rotation_index:rotation_index + 2]
+
+        # If we didn't get enough, wrap around
+        if len(tier2_to_query) < 2 and tier2_available:
+            remaining = 2 - len(tier2_to_query)
+            tier2_to_query.extend(tier2_available[:remaining])
+
+        # Combine: 3 tier1 + 2 tier2 = 5 tokens per collection (within rate limits)
+        tokens_to_query = tier1_to_query + tier2_to_query
 
         logger.info(f"Collecting social signals for {len(tokens_to_query)} tokens: {[t['symbol'] for t in tokens_to_query]}")
 
