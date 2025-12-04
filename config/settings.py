@@ -110,7 +110,7 @@ class XAPIConfig:
 
         # Brasileirão (Brazil)
         "SANTOS": "santos fan token OR #SantosToken",
-        "MENGO": "flamengo fan token OR #MengoToken OR #Flamengo",
+        "MENGO": "flamengo fan token OR #MengoToken OR #Flamengo OR mengo token OR \"$mengo\"",
         "FLU": "fluminense fan token OR #FluToken OR #Fluminense",
         "SCCP": "corinthians fan token OR #SCCPToken OR #Corinthians",
         "SPFC": "sao paulo fan token OR #SPFCToken",

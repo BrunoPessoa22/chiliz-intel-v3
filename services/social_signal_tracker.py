@@ -281,16 +281,17 @@ class SocialSignalTracker:
         hour = datetime.now().hour
         tier2_available = [t for t in tokens_with_queries if t["symbol"] in tier2_tokens]
 
-        # Pick 2 tokens from tier 2 based on rotation
-        rotation_index = (hour % 12) * 2  # Changes every hour, cycles through ~24 tokens
-        tier2_to_query = tier2_available[rotation_index:rotation_index + 2]
+        # Pick 5 tokens from tier 2 based on rotation (increased from 2)
+        # With ~50 tier2 tokens and 5 per cycle, full rotation every ~10 hours
+        rotation_index = (hour % 10) * 5  # Changes every hour
+        tier2_to_query = tier2_available[rotation_index:rotation_index + 5]
 
         # If we didn't get enough, wrap around
-        if len(tier2_to_query) < 2 and tier2_available:
-            remaining = 2 - len(tier2_to_query)
+        if len(tier2_to_query) < 5 and tier2_available:
+            remaining = 5 - len(tier2_to_query)
             tier2_to_query.extend(tier2_available[:remaining])
 
-        # Combine: 3 tier1 + 2 tier2 = 5 tokens per collection (within rate limits)
+        # Combine: 3 tier1 + 5 tier2 = 8 tokens per collection
         tokens_to_query = tier1_to_query + tier2_to_query
 
         logger.info(f"Collecting social signals for {len(tokens_to_query)} tokens: {[t['symbol'] for t in tokens_to_query]}")
@@ -420,6 +421,29 @@ async def collect_signals_once() -> int:
     except Exception as e:
         logger.error(f"Social collection failed: {e}")
         return 0
+
+
+async def collect_signals_for_token(symbol: str) -> int:
+    """
+    Collect signals for a specific token on-demand.
+    Bypasses the rotation schedule for immediate collection.
+    """
+    logger.info(f"Manual signal collection for {symbol}")
+    tracker = SocialSignalTracker()
+
+    if symbol not in tracker.search_queries:
+        raise ValueError(f"Token {symbol} not found in search queries")
+
+    try:
+        async with tracker as t:
+            signals = await t.collect_signals(symbol)
+            if signals:
+                await t._save_signals(signals)
+            logger.info(f"Manual collection for {symbol}: {len(signals)} signals")
+            return len(signals)
+    except Exception as e:
+        logger.error(f"Manual collection failed for {symbol}: {e}")
+        raise
 
 
 # API helper functions

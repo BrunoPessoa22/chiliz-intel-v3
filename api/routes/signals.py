@@ -13,6 +13,7 @@ from services.social_signal_tracker import (
     get_recent_signals,
     get_signal_stats,
     get_signal_tracker,
+    collect_signals_for_token,
 )
 from services.database import Database
 
@@ -387,3 +388,25 @@ async def get_signal_summary():
             "avg_sentiment": 0.5,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+
+@router.post("/collect/{symbol}")
+async def collect_token_signals(symbol: str):
+    """
+    Manually trigger signal collection for a specific token.
+    Use this when you need immediate collection outside the rotation schedule.
+    """
+    try:
+        count = await collect_signals_for_token(symbol.upper())
+
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "signals_collected": count,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error collecting signals for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
