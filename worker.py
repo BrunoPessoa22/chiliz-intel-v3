@@ -97,6 +97,58 @@ async def run_data_aggregation():
             pass
 
 
+async def run_lunarcrush_tracker():
+    """Run LunarCrush social intelligence collection (every 15 minutes)"""
+    from services.lunarcrush_tracker import collect_lunarcrush_metrics
+    from config.settings import lunarcrush_config
+
+    if not lunarcrush_config.api_key:
+        logger.warning("LunarCrush API key not configured, skipping tracker")
+        return
+
+    logger.info("Starting LunarCrush Tracker worker...")
+
+    while not shutdown_event.is_set():
+        try:
+            count = await collect_lunarcrush_metrics()
+            logger.info(f"LunarCrush collection complete: {count} tokens")
+        except Exception as e:
+            logger.error(f"LunarCrush collection error: {e}")
+
+        # Wait 15 minutes (staying within free tier limits)
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=900)
+            break
+        except asyncio.TimeoutError:
+            pass
+
+
+async def run_reddit_tracker():
+    """Run Reddit community signal collection (every 30 minutes)"""
+    from services.reddit_tracker import collect_reddit_signals
+    from config.settings import reddit_config
+
+    if not reddit_config.client_id:
+        logger.warning("Reddit API not configured, skipping tracker")
+        return
+
+    logger.info("Starting Reddit Tracker worker...")
+
+    while not shutdown_event.is_set():
+        try:
+            count = await collect_reddit_signals()
+            logger.info(f"Reddit collection complete: {count} signals")
+        except Exception as e:
+            logger.error(f"Reddit collection error: {e}")
+
+        # Wait 30 minutes
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=1800)
+            break
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main():
     """Main worker entry point"""
     logger.info("=" * 60)
@@ -118,6 +170,8 @@ async def main():
         asyncio.create_task(run_whale_tracker(), name="whale_tracker"),
         asyncio.create_task(run_social_tracker(), name="social_tracker"),
         asyncio.create_task(run_data_aggregation(), name="aggregation"),
+        asyncio.create_task(run_lunarcrush_tracker(), name="lunarcrush_tracker"),
+        asyncio.create_task(run_reddit_tracker(), name="reddit_tracker"),
     ]
 
     # Optionally add DEX tracker if Chiliz RPC is available

@@ -218,6 +218,62 @@ class ChilizChainConfig:
     })
 
 
+@dataclass
+class LunarCrushConfig:
+    """LunarCrush API configuration for social intelligence"""
+    api_key: str = os.getenv("LUNARCRUSH_API_KEY", "")
+    base_url: str = "https://lunarcrush.com/api4"
+
+    # Free tier: 100 requests/day, Pro: 10,000+
+    requests_per_day: int = 100
+
+    # Collection interval (15 min to stay within limits)
+    collection_interval: int = 900
+
+
+@dataclass
+class RedditConfig:
+    """Reddit API configuration for community signals"""
+    client_id: str = os.getenv("REDDIT_CLIENT_ID", "")
+    client_secret: str = os.getenv("REDDIT_CLIENT_SECRET", "")
+    user_agent: str = os.getenv("REDDIT_USER_AGENT", "ChilizIntel/1.0")
+
+    # Subreddits to monitor for fan token discussions
+    subreddits: List[str] = field(default_factory=lambda: [
+        "chiliz",
+        "socios",
+        "CryptoCurrency",
+        "CryptoMoonShots",
+        "altcoin",
+        # Team-specific subreddits
+        "Barca",
+        "psg",
+        "Juve",
+        "ACMilan",
+        "ASRoma",
+        "Gunners",  # Arsenal
+        "MCFC",  # Man City
+        "coys",  # Tottenham
+        "Galatasaray",
+        "flamengo",
+        # F1
+        "formula1",
+        # MMA
+        "MMA",
+        "ufc",
+    ])
+
+    # Keywords to filter relevant posts
+    keywords: List[str] = field(default_factory=lambda: [
+        "fan token",
+        "chiliz",
+        "socios",
+        "$CHZ",
+        "fantoken",
+        # Will also search for team token symbols
+    ])
+
+
 # Fan token definitions with all metadata - 65 tokens total
 FAN_TOKENS = [
     # Base token
@@ -385,3 +441,5 @@ x_api_config = XAPIConfig()
 openrouter_config = OpenRouterConfig()
 slack_config = SlackConfig()
 chiliz_chain_config = ChilizChainConfig()
+lunarcrush_config = LunarCrushConfig()
+reddit_config = RedditConfig()
