@@ -399,7 +399,7 @@ class RedditTracker:
              signal_type, score, upvote_ratio, num_comments,
              sentiment, sentiment_score, categories, is_high_priority, is_trending)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-            ON CONFLICT (post_id) DO UPDATE SET
+            ON CONFLICT (time, post_id) DO UPDATE SET
                 score = EXCLUDED.score,
                 num_comments = EXCLUDED.num_comments,
                 is_trending = EXCLUDED.is_trending

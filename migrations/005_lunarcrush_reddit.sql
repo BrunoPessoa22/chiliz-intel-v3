@@ -47,12 +47,11 @@ SELECT create_hypertable('lunarcrush_metrics', 'time',
 
 -- Reddit signals table
 CREATE TABLE IF NOT EXISTS reddit_signals (
-    id SERIAL PRIMARY KEY,
     time TIMESTAMPTZ NOT NULL,
     token_id INTEGER REFERENCES fan_tokens(id),
 
     -- Post metadata
-    post_id VARCHAR(50) UNIQUE,          -- Reddit post ID
+    post_id VARCHAR(50) NOT NULL,         -- Reddit post ID
     subreddit VARCHAR(100),
     title TEXT,
     content TEXT,
@@ -76,21 +75,23 @@ CREATE TABLE IF NOT EXISTS reddit_signals (
     is_high_priority BOOLEAN DEFAULT FALSE,
     is_trending BOOLEAN DEFAULT FALSE,
 
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+    created_at TIMESTAMPTZ DEFAULT NOW(),
 
--- Index for fast lookups
-CREATE INDEX IF NOT EXISTS idx_reddit_signals_time ON reddit_signals(time DESC);
-CREATE INDEX IF NOT EXISTS idx_reddit_signals_token ON reddit_signals(token_id);
-CREATE INDEX IF NOT EXISTS idx_reddit_signals_subreddit ON reddit_signals(subreddit);
-CREATE INDEX IF NOT EXISTS idx_reddit_signals_high_priority ON reddit_signals(is_high_priority) WHERE is_high_priority = TRUE;
+    -- Primary key includes time for hypertable partitioning
+    PRIMARY KEY (time, post_id)
+);
 
 -- Convert to hypertable
 SELECT create_hypertable('reddit_signals', 'time',
     if_not_exists => TRUE,
-    chunk_time_interval => INTERVAL '7 days',
-    migrate_data => TRUE
+    chunk_time_interval => INTERVAL '7 days'
 );
+
+-- Index for fast lookups
+CREATE INDEX IF NOT EXISTS idx_reddit_signals_token ON reddit_signals(token_id);
+CREATE INDEX IF NOT EXISTS idx_reddit_signals_subreddit ON reddit_signals(subreddit);
+CREATE INDEX IF NOT EXISTS idx_reddit_signals_high_priority ON reddit_signals(is_high_priority) WHERE is_high_priority = TRUE;
+CREATE INDEX IF NOT EXISTS idx_reddit_signals_post_id ON reddit_signals(post_id);
 
 -- Aggregated social metrics view (combines X, LunarCrush, Reddit)
 CREATE OR REPLACE VIEW social_metrics_combined AS
