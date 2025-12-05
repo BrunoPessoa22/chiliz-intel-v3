@@ -151,9 +151,19 @@ async def run_reddit_tracker():
 
 async def run_recommendation_alerts():
     """
-    Run AI recommendation engine and send Slack alerts (every 15 minutes).
-    This generates campaign recommendations based on social + market signals
-    and notifies the team via Slack for actionable opportunities.
+    Run AI recommendation engine and send Slack alerts ONLY when relevant.
+
+    Alerts are sent only for:
+    - CAMPAIGN NOW: Immediate opportunities (social + market aligned)
+    - MARKET MOMENTUM: Significant price/volume spikes (>15% price or 3x volume)
+    - AVOID: Negative sentiment warnings
+
+    Cooldowns prevent spam:
+    - CAMPAIGN NOW: 12 hour cooldown per token
+    - MARKET MOMENTUM: 12 hour cooldown per token
+    - AVOID: 24 hour cooldown per token
+
+    AMPLIFY and WATCH are logged but NOT sent to Slack (too noisy).
     """
     import os
     from services.recommendations_engine import RecommendationsEngine
@@ -164,10 +174,17 @@ async def run_recommendation_alerts():
         logger.warning("SLACK_BOT_TOKEN not configured, skipping recommendation alerts")
         return
 
-    logger.info("Starting Recommendation Alerts worker...")
+    logger.info("Starting Recommendation Alerts worker (only relevant alerts)...")
 
-    # Cache to track already-notified recommendations (persisted in memory during worker lifetime)
+    # Cache to track already-notified recommendations
     notified_cache = {}
+
+    # Cooldown periods (in seconds)
+    COOLDOWNS = {
+        "campaign_now": 43200,      # 12 hours
+        "market_momentum": 43200,   # 12 hours
+        "avoid": 86400,             # 24 hours
+    }
 
     while not shutdown_event.is_set():
         try:
@@ -177,11 +194,10 @@ async def run_recommendation_alerts():
             notifications_sent = 0
             now = datetime.now(timezone.utc)
 
-            # Process high priority recommendations
+            # Only notify for HIGH PRIORITY items (not amplify/watch)
             priority_lists = [
                 ("campaign_now", "CAMPAIGN NOW"),
                 ("market_momentum", "MARKET MOMENTUM"),
-                ("amplify", "AMPLIFY"),
                 ("avoid", "AVOID"),
             ]
 
@@ -191,10 +207,12 @@ async def run_recommendation_alerts():
                     rec_type = rec["type"]
                     cache_key = f"{symbol}_{rec_type}"
 
-                    # Check if already notified in last 6 hours
+                    cooldown = COOLDOWNS.get(rec_type, 43200)
+
+                    # Check if already notified within cooldown period
                     if cache_key in notified_cache:
                         last_notified = notified_cache[cache_key]
-                        if (now - last_notified).total_seconds() < 21600:  # 6 hours
+                        if (now - last_notified).total_seconds() < cooldown:
                             continue
 
                     # Send notification
@@ -204,27 +222,25 @@ async def run_recommendation_alerts():
                         notifications_sent += 1
                         logger.info(f"Sent Slack alert: {symbol} ({label})")
 
-            # Clean old cache entries (older than 24 hours)
+            # Clean old cache entries (older than 48 hours)
             expired_keys = [
                 k for k, v in notified_cache.items()
-                if (now - v).total_seconds() > 86400
+                if (now - v).total_seconds() > 172800
             ]
             for key in expired_keys:
                 del notified_cache[key]
 
             if notifications_sent > 0:
-                logger.info(f"Recommendation alerts complete: {notifications_sent} notifications sent")
-            else:
-                logger.info("Recommendation alerts complete: No new notifications")
+                logger.info(f"Recommendation alerts: {notifications_sent} notifications sent")
 
         except Exception as e:
             logger.error(f"Recommendation alerts error: {e}")
             import traceback
             logger.error(traceback.format_exc())
 
-        # Wait 15 minutes before next check
+        # Check every 30 minutes (but only send if something new/relevant)
         try:
-            await asyncio.wait_for(shutdown_event.wait(), timeout=900)
+            await asyncio.wait_for(shutdown_event.wait(), timeout=1800)
             break
         except asyncio.TimeoutError:
             pass
