@@ -300,8 +300,8 @@ async def main():
         asyncio.create_task(run_whale_tracker(), name="whale_tracker"),
         asyncio.create_task(run_social_tracker(), name="social_tracker"),
         asyncio.create_task(run_data_aggregation(), name="aggregation"),
-        asyncio.create_task(run_lunarcrush_tracker(), name="lunarcrush_tracker"),
-        asyncio.create_task(run_reddit_tracker(), name="reddit_tracker"),
+        # asyncio.create_task(run_lunarcrush_tracker(), name="lunarcrush_tracker"),  # Not integrated yet
+        # asyncio.create_task(run_reddit_tracker(), name="reddit_tracker"),  # Not integrated yet
         asyncio.create_task(run_correlation_analysis(), name="correlation_analysis"),
         asyncio.create_task(run_recommendation_alerts(), name="recommendation_alerts"),
     ]
