@@ -149,6 +149,39 @@ async def run_reddit_tracker():
             pass
 
 
+async def run_correlation_analysis():
+    """Run correlation analysis (every 6 hours)"""
+    from services.correlation_engine import CorrelationEngine
+
+    logger.info("Starting Correlation Analysis worker...")
+
+    while not shutdown_event.is_set():
+        try:
+            engine = CorrelationEngine()
+
+            # Run for different lookback periods
+            for days in [7, 14, 30]:
+                count = await engine.analyze_all_tokens(days)
+                logger.info(f"Correlation analysis ({days}d): {count} tokens")
+
+            # Also run social-price correlation
+            summary = await engine.get_social_correlation_summary()
+            predictive = summary.get("summary", {}).get("predictive", 0)
+            logger.info(f"Social→Price analysis: {predictive} tokens show predictive signals")
+
+        except Exception as e:
+            logger.error(f"Correlation analysis error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+        # Run every 6 hours
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=21600)
+            break
+        except asyncio.TimeoutError:
+            pass
+
+
 async def run_recommendation_alerts():
     """
     Run AI recommendation engine and send Slack alerts ONLY when relevant.
@@ -269,6 +302,7 @@ async def main():
         asyncio.create_task(run_data_aggregation(), name="aggregation"),
         asyncio.create_task(run_lunarcrush_tracker(), name="lunarcrush_tracker"),
         asyncio.create_task(run_reddit_tracker(), name="reddit_tracker"),
+        asyncio.create_task(run_correlation_analysis(), name="correlation_analysis"),
         asyncio.create_task(run_recommendation_alerts(), name="recommendation_alerts"),
     ]
 
