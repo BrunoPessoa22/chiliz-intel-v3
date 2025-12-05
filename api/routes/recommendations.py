@@ -107,7 +107,7 @@ async def send_new_recommendations_to_slack():
         notifications_sent = 0
         new_recommendations = []
 
-        # Check campaign_now recommendations (highest priority - always notify)
+        # Check campaign_now recommendations (HIGHEST priority - always notify)
         for rec in recommendations.get("campaign_now", []):
             symbol = rec["symbol"]
             rec_type = rec["type"]
@@ -118,10 +118,10 @@ async def send_new_recommendations_to_slack():
                 if success:
                     _notified_cache[cache_key] = datetime.now(timezone.utc)
                     notifications_sent += 1
-                    new_recommendations.append(symbol)
+                    new_recommendations.append(f"{symbol} (CAMPAIGN NOW)")
 
-        # Check campaign_soon recommendations (notify for new opportunities)
-        for rec in recommendations.get("campaign_soon", []):
+        # Check market_momentum recommendations (HIGH priority - notify for price/volume spikes)
+        for rec in recommendations.get("market_momentum", []):
             symbol = rec["symbol"]
             rec_type = rec["type"]
             cache_key = f"{symbol}_{rec_type}"
@@ -131,9 +131,23 @@ async def send_new_recommendations_to_slack():
                 if success:
                     _notified_cache[cache_key] = datetime.now(timezone.utc)
                     notifications_sent += 1
-                    new_recommendations.append(symbol)
+                    price_change = rec.get("data", {}).get("price_change_24h", 0)
+                    new_recommendations.append(f"{symbol} (+{price_change:.0f}% MOMENTUM)")
 
-        # Check avoid recommendations (high priority - always notify)
+        # Check amplify recommendations (notify for social growth with volume)
+        for rec in recommendations.get("amplify", []):
+            symbol = rec["symbol"]
+            rec_type = rec["type"]
+            cache_key = f"{symbol}_{rec_type}"
+
+            if cache_key not in _notified_cache:
+                success = await send_recommendation_alert(rec)
+                if success:
+                    _notified_cache[cache_key] = datetime.now(timezone.utc)
+                    notifications_sent += 1
+                    new_recommendations.append(f"{symbol} (AMPLIFY)")
+
+        # Check avoid recommendations (HIGH priority - always notify)
         for rec in recommendations.get("avoid", []):
             symbol = rec["symbol"]
             rec_type = rec["type"]
@@ -144,7 +158,7 @@ async def send_new_recommendations_to_slack():
                 if success:
                     _notified_cache[cache_key] = datetime.now(timezone.utc)
                     notifications_sent += 1
-                    new_recommendations.append(symbol)
+                    new_recommendations.append(f"{symbol} (AVOID)")
 
         # Clean old cache entries (older than 24 hours)
         now = datetime.now(timezone.utc)

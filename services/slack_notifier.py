@@ -34,20 +34,20 @@ async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
     # Emoji based on recommendation type
     emoji_map = {
         "campaign_now": "🚀",
-        "campaign_soon": "📅",
+        "market_momentum": "📊",
         "amplify": "📈",
+        "watch": "👀",
         "avoid": "⛔",
-        "hold": "⏸️",
     }
     emoji = emoji_map.get(rec_type, "💡")
 
     # Color based on type
     color_map = {
-        "campaign_now": "#22c55e",  # Green
-        "campaign_soon": "#3b82f6",  # Blue
-        "amplify": "#a855f7",  # Purple
-        "avoid": "#ef4444",  # Red
-        "hold": "#6b7280",  # Gray
+        "campaign_now": "#22c55e",  # Green - highest priority
+        "market_momentum": "#f59e0b",  # Orange - market moving
+        "amplify": "#a855f7",  # Purple - social growth
+        "watch": "#6b7280",  # Gray - monitor
+        "avoid": "#ef4444",  # Red - negative
     }
     color = color_map.get(rec_type, "#6b7280")
 
@@ -85,11 +85,32 @@ async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
                 },
                 {
                     "type": "mrkdwn",
+                    "text": f"*Price 24h:*\n{data.get('price_change_24h', 0):+.1f}%"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Volume:*\n${data.get('volume_usd', 0):,.0f}"
+                },
+            ]
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
                     "text": f"*Signals (24h):*\n{data.get('signal_count_24h', 0):,}"
                 },
                 {
                     "type": "mrkdwn",
                     "text": f"*Sentiment:*\n{(data.get('avg_sentiment', 0.5) * 100):.0f}%"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Social Change:*\n{data.get('signal_change_ratio', 1.0):.1f}x"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Volume Change:*\n{data.get('volume_change_ratio', 1.0):.1f}x"
                 },
             ]
         },

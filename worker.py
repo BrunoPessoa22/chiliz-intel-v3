@@ -149,6 +149,87 @@ async def run_reddit_tracker():
             pass
 
 
+async def run_recommendation_alerts():
+    """
+    Run AI recommendation engine and send Slack alerts (every 15 minutes).
+    This generates campaign recommendations based on social + market signals
+    and notifies the team via Slack for actionable opportunities.
+    """
+    from services.recommendations_engine import RecommendationsEngine
+    from services.slack_notifier import send_recommendation_alert
+    from services.database import Database
+    from config.settings import slack_config
+
+    if not slack_config.webhook_url:
+        logger.warning("Slack webhook not configured, skipping recommendation alerts")
+        return
+
+    logger.info("Starting Recommendation Alerts worker...")
+
+    # Cache to track already-notified recommendations (persisted in memory during worker lifetime)
+    notified_cache = {}
+
+    while not shutdown_event.is_set():
+        try:
+            engine = RecommendationsEngine()
+            recommendations = await engine.get_all_recommendations()
+
+            notifications_sent = 0
+            now = datetime.now(timezone.utc)
+
+            # Process high priority recommendations
+            priority_lists = [
+                ("campaign_now", "CAMPAIGN NOW"),
+                ("market_momentum", "MARKET MOMENTUM"),
+                ("amplify", "AMPLIFY"),
+                ("avoid", "AVOID"),
+            ]
+
+            for list_key, label in priority_lists:
+                for rec in recommendations.get(list_key, []):
+                    symbol = rec["symbol"]
+                    rec_type = rec["type"]
+                    cache_key = f"{symbol}_{rec_type}"
+
+                    # Check if already notified in last 6 hours
+                    if cache_key in notified_cache:
+                        last_notified = notified_cache[cache_key]
+                        if (now - last_notified).total_seconds() < 21600:  # 6 hours
+                            continue
+
+                    # Send notification
+                    success = await send_recommendation_alert(rec)
+                    if success:
+                        notified_cache[cache_key] = now
+                        notifications_sent += 1
+                        logger.info(f"Sent Slack alert: {symbol} ({label})")
+
+            # Clean old cache entries (older than 24 hours)
+            expired_keys = [
+                k for k, v in notified_cache.items()
+                if (now - v).total_seconds() > 86400
+            ]
+            for key in expired_keys:
+                del notified_cache[key]
+
+            if notifications_sent > 0:
+                logger.info(f"Recommendation alerts complete: {notifications_sent} notifications sent")
+            else:
+                logger.info("Recommendation alerts complete: No new notifications")
+
+        except Exception as e:
+            logger.error(f"Recommendation alerts error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+        # Wait 15 minutes before next check
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=900)
+            break
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main():
     """Main worker entry point"""
     logger.info("=" * 60)
@@ -172,6 +253,7 @@ async def main():
         asyncio.create_task(run_data_aggregation(), name="aggregation"),
         asyncio.create_task(run_lunarcrush_tracker(), name="lunarcrush_tracker"),
         asyncio.create_task(run_reddit_tracker(), name="reddit_tracker"),
+        asyncio.create_task(run_recommendation_alerts(), name="recommendation_alerts"),
     ]
 
     # Optionally add DEX tracker if Chiliz RPC is available
