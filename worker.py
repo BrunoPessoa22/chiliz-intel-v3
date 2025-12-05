@@ -155,13 +155,13 @@ async def run_recommendation_alerts():
     This generates campaign recommendations based on social + market signals
     and notifies the team via Slack for actionable opportunities.
     """
+    import os
     from services.recommendations_engine import RecommendationsEngine
     from services.slack_notifier import send_recommendation_alert
-    from services.database import Database
-    from config.settings import slack_config
 
-    if not slack_config.webhook_url:
-        logger.warning("Slack webhook not configured, skipping recommendation alerts")
+    slack_token = os.getenv("SLACK_BOT_TOKEN", "")
+    if not slack_token:
+        logger.warning("SLACK_BOT_TOKEN not configured, skipping recommendation alerts")
         return
 
     logger.info("Starting Recommendation Alerts worker...")

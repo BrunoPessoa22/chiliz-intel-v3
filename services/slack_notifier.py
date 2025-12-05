@@ -1,15 +1,67 @@
 """
 Slack Notification Service
 Sends alerts to Slack for recommendations, transfers, and other events
+Uses Slack Bot API (chat.postMessage) for flexible channel targeting
 """
 import logging
 import aiohttp
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 
-from config.settings import slack_config
-
 logger = logging.getLogger(__name__)
+
+# Slack Bot configuration
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
+SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "social-sentiment")
+SLACK_API_URL = "https://slack.com/api/chat.postMessage"
+
+
+async def _send_to_slack(blocks: List[Dict], text: str, attachments: Optional[List[Dict]] = None) -> bool:
+    """
+    Send a message to Slack using the Bot API.
+
+    Args:
+        blocks: Slack block kit blocks
+        text: Fallback text for notifications
+        attachments: Optional attachments with colors
+    """
+    if not SLACK_BOT_TOKEN:
+        logger.warning("SLACK_BOT_TOKEN not configured")
+        return False
+
+    payload = {
+        "channel": SLACK_CHANNEL,
+        "text": text,
+        "blocks": blocks,
+    }
+
+    if attachments:
+        payload["attachments"] = attachments
+
+    headers = {
+        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                SLACK_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                data = await resp.json()
+                if data.get("ok"):
+                    logger.info(f"Sent Slack message to #{SLACK_CHANNEL}")
+                    return True
+                else:
+                    logger.error(f"Slack API error: {data.get('error')}")
+                    return False
+    except Exception as e:
+        logger.error(f"Failed to send Slack message: {e}")
+        return False
 
 
 async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
@@ -19,10 +71,6 @@ async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
     Args:
         recommendation: The recommendation dict with type, symbol, reasoning, etc.
     """
-    if not slack_config.webhook_url:
-        logger.warning("Slack webhook URL not configured")
-        return False
-
     rec_type = recommendation.get("type", "")
     symbol = recommendation.get("symbol", "")
     headline = recommendation.get("headline", "")
@@ -33,13 +81,13 @@ async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
 
     # Emoji based on recommendation type
     emoji_map = {
-        "campaign_now": "🚀",
-        "market_momentum": "📊",
-        "amplify": "📈",
-        "watch": "👀",
-        "avoid": "⛔",
+        "campaign_now": ":rocket:",
+        "market_momentum": ":chart_with_upwards_trend:",
+        "amplify": ":loudspeaker:",
+        "watch": ":eyes:",
+        "avoid": ":no_entry:",
     }
-    emoji = emoji_map.get(rec_type, "💡")
+    emoji = emoji_map.get(rec_type, ":bulb:")
 
     # Color based on type
     color_map = {
@@ -159,33 +207,15 @@ async def send_recommendation_alert(recommendation: Dict[str, Any]) -> bool:
         ]
     })
 
-    payload = {
-        "blocks": blocks,
-        "attachments": [
-            {
-                "color": color,
-                "blocks": []
-            }
-        ]
-    }
+    attachments = [
+        {
+            "color": color,
+            "blocks": []
+        }
+    ]
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                slack_config.webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                if resp.status == 200:
-                    logger.info(f"Sent Slack alert for {symbol} recommendation")
-                    return True
-                else:
-                    text = await resp.text()
-                    logger.error(f"Slack API error: {resp.status} - {text}")
-                    return False
-    except Exception as e:
-        logger.error(f"Failed to send Slack alert: {e}")
-        return False
+    fallback_text = f"{emoji} {headline}"
+    return await _send_to_slack(blocks, fallback_text, attachments)
 
 
 async def send_transfer_alert(alert: Dict[str, Any]) -> bool:
@@ -195,9 +225,6 @@ async def send_transfer_alert(alert: Dict[str, Any]) -> bool:
     Args:
         alert: The transfer alert dict
     """
-    if not slack_config.webhook_url:
-        return False
-
     symbol = alert.get("symbol", "")
     headline = alert.get("headline", "")
     description = alert.get("description", "")
@@ -206,19 +233,19 @@ async def send_transfer_alert(alert: Dict[str, Any]) -> bool:
 
     # Emoji based on severity
     emoji_map = {
-        "critical": "🔴",
-        "high": "🟠",
-        "medium": "🟡",
-        "low": "🟢",
+        "critical": ":red_circle:",
+        "high": ":large_orange_circle:",
+        "medium": ":large_yellow_circle:",
+        "low": ":large_green_circle:",
     }
-    emoji = emoji_map.get(severity, "⚪")
+    emoji = emoji_map.get(severity, ":white_circle:")
 
     blocks = [
         {
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"⚽ Transfer Alert: {symbol}",
+                "text": f":soccer: Transfer Alert: {symbol}",
                 "emoji": True
             }
         },
@@ -258,34 +285,20 @@ async def send_transfer_alert(alert: Dict[str, Any]) -> bool:
         }
     ]
 
-    payload = {"blocks": blocks}
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                slack_config.webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                return resp.status == 200
-    except Exception as e:
-        logger.error(f"Failed to send transfer alert: {e}")
-        return False
+    fallback_text = f":soccer: Transfer Alert: {symbol} - {headline}"
+    return await _send_to_slack(blocks, fallback_text)
 
 
 async def send_daily_summary(summary: Dict[str, Any]) -> bool:
     """
     Send a daily summary to Slack.
     """
-    if not slack_config.webhook_url:
-        return False
-
     blocks = [
         {
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": "📊 Daily Fan Token Intelligence Summary",
+                "text": ":bar_chart: Daily Fan Token Intelligence Summary",
                 "emoji": True
             }
         },
@@ -334,16 +347,5 @@ async def send_daily_summary(summary: Dict[str, Any]) -> bool:
         }
     ]
 
-    payload = {"blocks": blocks}
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                slack_config.webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                return resp.status == 200
-    except Exception as e:
-        logger.error(f"Failed to send daily summary: {e}")
-        return False
+    fallback_text = ":bar_chart: Daily Fan Token Intelligence Summary"
+    return await _send_to_slack(blocks, fallback_text)
