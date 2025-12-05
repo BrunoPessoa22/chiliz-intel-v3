@@ -390,6 +390,221 @@ async def get_signal_summary():
         }
 
 
+@router.get("/wordcloud/{symbol}")
+async def get_token_wordcloud(
+    symbol: str,
+    hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=100, ge=10, le=500, description="Max words to return")
+):
+    """
+    Get word frequency data for word cloud visualization.
+    Returns most mentioned words in tweets about this token.
+    Updates in real-time as new tweets come in.
+    """
+    import re
+    from collections import Counter
+
+    # Stop words to filter out (common words, URLs, mentions, etc.)
+    STOP_WORDS = {
+        # English common
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+        'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+        'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'it', 'its', 'this',
+        'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they', 'what', 'which',
+        'who', 'whom', 'when', 'where', 'why', 'how', 'all', 'each', 'every', 'both',
+        'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+        'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now', 'here',
+        'there', 'then', 'once', 'if', 'as', 'into', 'about', 'out', 'up', 'down',
+        'over', 'under', 'again', 'further', 'any', 'our', 'your', 'his', 'her', 'their',
+        'my', 'me', 'him', 'us', 'them', 'am', 'get', 'got', 'go', 'going', 'goes',
+        # Social media specific
+        'rt', 'via', 'https', 'http', 'co', 'amp', 't', 's', 're', 've', 'll', 'd',
+        # Crypto common (filter noise)
+        'token', 'tokens', 'fan', 'price', 'crypto', 'buy', 'sell', 'trading',
+        # Portuguese common
+        'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'nos', 'nas', 'um', 'uma',
+        'para', 'com', 'por', 'que', 'se', 'mais', 'muito', 'como', 'seu', 'sua',
+        # Spanish common
+        'el', 'la', 'los', 'las', 'un', 'una', 'es', 'en', 'del', 'al', 'con', 'por',
+        'para', 'que', 'se', 'su', 'sus', 'mas', 'pero', 'como', 'este', 'esta',
+        # Numbers and single chars
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '100',
+    }
+
+    try:
+        # Fetch tweet content for this token
+        query = """
+            SELECT content, engagement
+            FROM social_signals
+            WHERE token_id = (SELECT id FROM fan_tokens WHERE UPPER(symbol) = UPPER($1))
+            AND time > NOW() - INTERVAL '%s hours'
+            AND content IS NOT NULL
+            ORDER BY time DESC
+        """ % hours
+
+        rows = await Database.fetch(query, symbol)
+
+        if not rows:
+            return {
+                "symbol": symbol.upper(),
+                "words": [],
+                "total_tweets": 0,
+                "period_hours": hours,
+                "message": "No tweets found for this token in the specified period",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # Process all tweet content
+        word_counts = Counter()
+        total_tweets = len(rows)
+
+        for row in rows:
+            content = row['content'] or ''
+            engagement = row['engagement'] or 1
+
+            # Clean text
+            text = content.lower()
+            # Remove URLs
+            text = re.sub(r'https?://\S+', '', text)
+            # Remove mentions (@user)
+            text = re.sub(r'@\w+', '', text)
+            # Remove hashtag symbols but keep the word
+            text = re.sub(r'#(\w+)', r'\1', text)
+            # Remove special characters, keep letters and spaces
+            text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+            # Split into words
+            words = text.split()
+
+            # Count words (weight by engagement)
+            weight = 1 + (engagement * 0.1)  # Higher engagement = slightly more weight
+            for word in words:
+                word = word.strip()
+                if len(word) >= 3 and word not in STOP_WORDS:
+                    word_counts[word] += weight
+
+        # Get top words
+        top_words = word_counts.most_common(limit)
+
+        # Format for word cloud (normalize sizes)
+        max_count = top_words[0][1] if top_words else 1
+        words = [
+            {
+                "text": word,
+                "value": round(count, 1),
+                "size": round((count / max_count) * 100, 1),  # Normalized 0-100
+            }
+            for word, count in top_words
+        ]
+
+        return {
+            "symbol": symbol.upper(),
+            "words": words,
+            "total_tweets": total_tweets,
+            "unique_words": len(word_counts),
+            "period_hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating word cloud for {symbol}: {e}")
+        return {
+            "symbol": symbol.upper(),
+            "words": [],
+            "total_tweets": 0,
+            "period_hours": hours,
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@router.get("/wordcloud")
+async def get_all_wordcloud(
+    hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=100, ge=10, le=500)
+):
+    """
+    Get word cloud data for ALL tokens combined.
+    Shows overall narrative across the fan token ecosystem.
+    """
+    import re
+    from collections import Counter
+
+    STOP_WORDS = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+        'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+        'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'must', 'shall', 'can', 'need', 'it', 'its', 'this', 'that', 'these', 'those',
+        'i', 'you', 'he', 'she', 'we', 'they', 'what', 'which', 'who', 'when', 'where',
+        'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+        'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too',
+        'very', 'just', 'also', 'now', 'rt', 'via', 'https', 'http', 'co', 'amp', 't',
+        's', 're', 've', 'll', 'd', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na',
+        'um', 'uma', 'para', 'com', 'por', 'que', 'se', 'el', 'la', 'los', 'las', 'un',
+        'una', 'es', 'en', 'del', 'al', 'con', 'token', 'tokens', 'fan', 'price', 'crypto',
+    }
+
+    try:
+        query = """
+            SELECT ss.content, ss.engagement, ft.symbol
+            FROM social_signals ss
+            JOIN fan_tokens ft ON ss.token_id = ft.id
+            WHERE ss.time > NOW() - INTERVAL '%s hours'
+            AND ss.content IS NOT NULL
+            ORDER BY ss.time DESC
+        """ % hours
+
+        rows = await Database.fetch(query)
+
+        word_counts = Counter()
+        token_mentions = Counter()
+
+        for row in rows:
+            content = row['content'] or ''
+            engagement = row['engagement'] or 1
+            token_mentions[row['symbol']] += 1
+
+            text = content.lower()
+            text = re.sub(r'https?://\S+', '', text)
+            text = re.sub(r'@\w+', '', text)
+            text = re.sub(r'#(\w+)', r'\1', text)
+            text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+            words = text.split()
+
+            weight = 1 + (engagement * 0.1)
+            for word in words:
+                word = word.strip()
+                if len(word) >= 3 and word not in STOP_WORDS:
+                    word_counts[word] += weight
+
+        top_words = word_counts.most_common(limit)
+        max_count = top_words[0][1] if top_words else 1
+
+        words = [
+            {"text": word, "value": round(count, 1), "size": round((count / max_count) * 100, 1)}
+            for word, count in top_words
+        ]
+
+        return {
+            "symbol": "ALL",
+            "words": words,
+            "total_tweets": len(rows),
+            "unique_words": len(word_counts),
+            "tokens_in_data": dict(token_mentions.most_common(10)),
+            "period_hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating global word cloud: {e}")
+        return {
+            "symbol": "ALL",
+            "words": [],
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
 @router.post("/collect/{symbol}")
 async def collect_token_signals(symbol: str):
     """
