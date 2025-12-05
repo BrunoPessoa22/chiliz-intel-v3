@@ -394,15 +394,28 @@ async def get_signal_summary():
 async def get_token_wordcloud(
     symbol: str,
     hours: int = Query(default=24, ge=1, le=168),
-    limit: int = Query(default=100, ge=10, le=500, description="Max words to return")
+    limit: int = Query(default=100, ge=10, le=500, description="Max words to return"),
+    token_only: bool = Query(default=True, description="Only fan token related tweets (filters out general team chatter)")
 ):
     """
     Get word frequency data for word cloud visualization.
     Returns most mentioned words in tweets about this token.
     Updates in real-time as new tweets come in.
+
+    token_only=True (default): Only tweets mentioning token/crypto terms
+    token_only=False: All tweets including general team discussion
     """
     import re
     from collections import Counter
+
+    # Words that indicate fan token context (not just team talk)
+    TOKEN_CONTEXT_WORDS = {
+        'token', 'tokens', 'fan token', 'fantoken', '$', 'chiliz', 'chz', 'socios',
+        'buy', 'sell', 'hold', 'hodl', 'pump', 'dump', 'moon', 'price', 'trading',
+        'exchange', 'binance', 'mexc', 'crypto', 'blockchain', 'web3', 'nft',
+        'reward', 'rewards', 'voting', 'vote', 'poll', 'airdrop', 'stake', 'staking',
+        'wallet', 'dex', 'cex', 'liquidity', 'volume', 'market', 'bullish', 'bearish',
+    }
 
     # Stop words to filter out (common words, URLs, mentions, etc.)
     STOP_WORDS = {
@@ -451,7 +464,32 @@ async def get_token_wordcloud(
                 "words": [],
                 "total_tweets": 0,
                 "period_hours": hours,
+                "token_only": token_only,
                 "message": "No tweets found for this token in the specified period",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # Filter to token-related tweets if requested
+        if token_only:
+            filtered_rows = []
+            for row in rows:
+                content_lower = (row['content'] or '').lower()
+                # Check if tweet contains any token context words
+                has_token_context = any(word in content_lower for word in TOKEN_CONTEXT_WORDS)
+                # Also check for $ symbol followed by token symbol (e.g., $MENGO, $BAR)
+                has_dollar_symbol = f'${symbol.lower()}' in content_lower
+                if has_token_context or has_dollar_symbol:
+                    filtered_rows.append(row)
+            rows = filtered_rows
+
+        if not rows:
+            return {
+                "symbol": symbol.upper(),
+                "words": [],
+                "total_tweets": 0,
+                "period_hours": hours,
+                "token_only": token_only,
+                "message": f"No fan token specific tweets found. Try token_only=false to include general team discussion.",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -503,6 +541,7 @@ async def get_token_wordcloud(
             "total_tweets": total_tweets,
             "unique_words": len(word_counts),
             "period_hours": hours,
+            "token_only": token_only,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
