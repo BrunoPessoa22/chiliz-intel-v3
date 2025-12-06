@@ -274,6 +274,31 @@ class RedditConfig:
     ])
 
 
+# TOP 20 tokens to track via CoinGecko API (to save API credits)
+# Selected based on volume, market cap, and relevance
+TOP_20_COINGECKO_IDS = [
+    "chiliz",                           # CHZ - Base token
+    "fc-barcelona-fan-token",           # BAR
+    "paris-saint-germain-fan-token",    # PSG
+    "juventus-fan-token",               # JUV
+    "manchester-city-fan-token",        # CITY
+    "ac-milan-fan-token",               # ACM
+    "inter-milan-fan-token",            # INTER
+    "atletico-madrid",                  # ATM
+    "arsenal-fan-token",                # AFC
+    "as-roma-fan-token",                # ASR
+    "napoli-fan-token",                 # NAP
+    "galatasaray-fan-token",            # GAL
+    "flamengo-fan-token",               # MENGO
+    "tottenham-hotspur-fc-fan-token",   # SPURS
+    "argentine-football-association-fan-token",  # ARG
+    "sl-benfica-fan-token",             # BENFICA
+    "s-c-corinthians-fan-token",        # SCCP
+    "og-fan-token",                     # OG (Esports)
+    "ufc-fan-token",                    # UFC
+    "santos-fc-fan-token",              # SANTOS
+]
+
 # Fan token definitions with all metadata - 65 tokens total
 FAN_TOKENS = [
     # Base token
@@ -422,15 +447,16 @@ HEALTH_SCORE_CONFIG = {
 }
 
 # Collection intervals (in seconds)
+# OPTIMIZED to reduce CoinGecko API usage (500k credits/month)
 COLLECTION_INTERVALS = {
-    "price_volume": 60,       # Every minute
-    "spread": 60,             # Every minute
-    "liquidity": 300,         # Every 5 minutes
-    "holders": 3600,          # Every hour
-    "social": 900,            # Every 15 minutes
-    "aggregation": 300,       # Every 5 minutes
-    "correlation": 86400,     # Daily
-    "health_score": 300,      # Every 5 minutes
+    "price_volume": 300,      # Every 5 minutes (was 60s) - uses BATCH endpoint
+    "spread": 900,            # Every 15 minutes (was 60s) - 20 API calls
+    "liquidity": 1800,        # Every 30 minutes (was 300s) - 20 API calls
+    "holders": 3600,          # Every hour (no change)
+    "social": 900,            # Every 15 minutes (no change)
+    "aggregation": 300,       # Every 5 minutes (no change)
+    "correlation": 86400,     # Daily (no change)
+    "health_score": 300,      # Every 5 minutes (no change)
 }
 
 

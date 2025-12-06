@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from config.settings import coingecko_config
-from services.database import Database, get_token_id, get_exchange_id, get_all_tokens
+from config.settings import coingecko_config, TOP_20_COINGECKO_IDS, FAN_TOKENS
+from services.database import Database, get_token_id, get_exchange_id
 
 logger = logging.getLogger(__name__)
 
@@ -150,11 +150,12 @@ class LiquidityAnalyzer:
         return results
 
     async def collect_all(self) -> int:
-        """Collect liquidity data for all tokens"""
-        tokens = await get_all_tokens()
+        """Collect liquidity data for TOP 20 tokens only"""
+        # Filter FAN_TOKENS to only include TOP 20
+        top_tokens = [t for t in FAN_TOKENS if t.get("coingecko_id") in TOP_20_COINGECKO_IDS]
         all_data = []
 
-        for token in tokens:
+        for token in top_tokens:
             data = await self.collect_liquidity_data(token)
             all_data.extend(data)
             await asyncio.sleep(2)
@@ -162,7 +163,7 @@ class LiquidityAnalyzer:
         if all_data:
             await self._insert_liquidity_data(all_data)
 
-        logger.info(f"Collected {len(all_data)} liquidity records")
+        logger.info(f"Collected {len(all_data)} liquidity records (TOP 20 tokens)")
         return len(all_data)
 
     async def _insert_liquidity_data(self, data: List[Dict[str, Any]]):

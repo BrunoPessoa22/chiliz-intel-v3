@@ -1,6 +1,7 @@
 """
 PILLAR 1 & 2: Price and Volume Data Collector
-Uses CoinGecko Pro API for multi-exchange data
+Uses CoinGecko Pro API BATCH endpoint to minimize API calls
+Only tracks TOP 20 tokens to save credits
 """
 import asyncio
 import logging
@@ -9,14 +10,14 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from config.settings import coingecko_config, FAN_TOKENS, EXCHANGES
-from services.database import Database, get_token_id, get_exchange_id, get_all_tokens
+from config.settings import coingecko_config, TOP_20_COINGECKO_IDS
+from services.database import Database, get_token_id, get_exchange_id
 
 logger = logging.getLogger(__name__)
 
 
 class PriceVolumeCollector:
-    """Collects price and volume data from multiple exchanges via CoinGecko Pro"""
+    """Collects price and volume data using CoinGecko BATCH endpoint"""
 
     def __init__(self):
         self.api_key = coingecko_config.api_key
@@ -26,127 +27,140 @@ class PriceVolumeCollector:
     async def __aenter__(self):
         self.session = aiohttp.ClientSession(
             headers={
+                "x-cg-pro-api-key": self.api_key,
                 "Accept": "application/json",
             }
         )
         return self
 
-    def _add_api_key(self, params: dict) -> dict:
-        """Add API key to request params"""
-        if self.api_key:
-            params["x_cg_pro_api_key"] = self.api_key
-        return params
-
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
 
-    async def fetch_coin_tickers(self, coingecko_id: str) -> List[Dict[str, Any]]:
-        """Fetch all exchange tickers for a coin"""
-        url = f"{self.base_url}/coins/{coingecko_id}/tickers"
-        params = self._add_api_key({
-            "include_exchange_logo": "false",
-            "depth": "true",  # Include order book depth
-        })
+    async def fetch_batch_market_data(self) -> List[Dict[str, Any]]:
+        """
+        Fetch market data for ALL top 20 tokens in ONE API call.
+        Uses /coins/markets endpoint which returns price, volume, market cap, 24h change.
+        """
+        url = f"{self.base_url}/coins/markets"
+
+        # Join all coingecko IDs into comma-separated string
+        ids = ",".join(TOP_20_COINGECKO_IDS)
+
+        params = {
+            "vs_currency": "usd",
+            "ids": ids,
+            "order": "market_cap_desc",
+            "per_page": 100,
+            "page": 1,
+            "sparkline": "false",
+            "price_change_percentage": "1h,24h,7d",
+        }
 
         try:
             async with self.session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    return data.get("tickers", [])
+                    logger.info(f"Batch fetch successful: {len(data)} tokens")
+                    return data
                 else:
-                    logger.warning(f"CoinGecko API error for {coingecko_id}: {resp.status}")
+                    error_text = await resp.text()
+                    logger.warning(f"CoinGecko batch API error: {resp.status} - {error_text[:200]}")
                     return []
         except Exception as e:
-            logger.error(f"Error fetching tickers for {coingecko_id}: {e}")
+            logger.error(f"Error fetching batch market data: {e}")
             return []
 
-    async def fetch_coin_market_data(self, coingecko_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch market data including market cap"""
-        url = f"{self.base_url}/coins/{coingecko_id}"
-        params = self._add_api_key({
-            "localization": "false",
-            "tickers": "false",
-            "community_data": "false",
-            "developer_data": "false",
-        })
+    async def collect_all(self) -> int:
+        """Collect price/volume data for top 20 tokens in ONE API call"""
 
-        try:
-            async with self.session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    return await resp.json()
-                return None
-        except Exception as e:
-            logger.error(f"Error fetching market data for {coingecko_id}: {e}")
-            return None
+        # Single batch API call for all tokens
+        market_data = await self.fetch_batch_market_data()
 
-    async def collect_token_data(self, token: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Collect price/volume data for a single token across exchanges"""
-        coingecko_id = token.get("coingecko_id")
-        if not coingecko_id:
-            return []
+        if not market_data:
+            logger.warning("No market data returned from batch API")
+            return 0
 
-        token_id = await get_token_id(token["symbol"])
-        if not token_id:
-            logger.warning(f"Token ID not found for {token['symbol']}")
-            return []
-
-        tickers = await self.fetch_coin_tickers(coingecko_id)
         now = datetime.now(timezone.utc)
+        all_data = []
 
-        results = []
-        for ticker in tickers:
-            exchange_id_str = ticker.get("market", {}).get("identifier", "")
-            exchange_id = await get_exchange_id(exchange_id_str)
+        # Map coingecko_id to symbol for our tokens
+        id_to_symbol = {
+            "chiliz": "CHZ",
+            "fc-barcelona-fan-token": "BAR",
+            "paris-saint-germain-fan-token": "PSG",
+            "juventus-fan-token": "JUV",
+            "manchester-city-fan-token": "CITY",
+            "ac-milan-fan-token": "ACM",
+            "inter-milan-fan-token": "INTER",
+            "atletico-madrid": "ATM",
+            "arsenal-fan-token": "AFC",
+            "as-roma-fan-token": "ASR",
+            "napoli-fan-token": "NAP",
+            "galatasaray-fan-token": "GAL",
+            "flamengo-fan-token": "MENGO",
+            "tottenham-hotspur-fc-fan-token": "SPURS",
+            "argentine-football-association-fan-token": "ARG",
+            "sl-benfica-fan-token": "BENFICA",
+            "s-c-corinthians-fan-token": "SCCP",
+            "og-fan-token": "OG",
+            "ufc-fan-token": "UFC",
+            "santos-fc-fan-token": "SANTOS",
+        }
+
+        for coin in market_data:
+            coingecko_id = coin.get("id")
+            symbol = id_to_symbol.get(coingecko_id)
+
+            if not symbol:
+                continue
+
+            token_id = await get_token_id(symbol)
+            if not token_id:
+                logger.warning(f"Token ID not found for {symbol}")
+                continue
+
+            # Get "aggregate" exchange ID (for overall market data)
+            exchange_id = await get_exchange_id("aggregate")
+            if not exchange_id:
+                # Try binance as fallback
+                exchange_id = await get_exchange_id("binance")
 
             if not exchange_id:
-                continue  # Skip exchanges we don't track
+                continue
 
-            # Extract price and volume data
-            # Use converted_last for USD price (handles non-USD quote currencies like TRY, KRW)
-            price = float(ticker.get("converted_last", {}).get("usd", 0))
-            volume_usd = float(ticker.get("converted_volume", {}).get("usd", 0))
-            volume_base = float(ticker.get("volume", 0))
+            price = float(coin.get("current_price") or 0)
+            volume_24h = float(coin.get("total_volume") or 0)
+            price_change_1h = float(coin.get("price_change_percentage_1h_in_currency") or 0)
+            price_change_24h = float(coin.get("price_change_percentage_24h") or 0)
+            high_24h = float(coin.get("high_24h") or 0)
+            low_24h = float(coin.get("low_24h") or 0)
+            market_cap = float(coin.get("market_cap") or 0)
 
-            # Skip if no valid USD price
             if price <= 0:
                 continue
 
-            # Extract bid-ask for spread calculation
-            bid = float(ticker.get("bid_ask_spread_percentage", 0))
-
-            results.append({
+            all_data.append({
                 "time": now,
                 "token_id": token_id,
                 "exchange_id": exchange_id,
                 "price": price,
-                "price_change_1h": None,  # Will calculate from historical
-                "price_change_24h": None,
-                "volume_24h": volume_usd,
-                "volume_base_24h": volume_base,
-                "trade_count_24h": None,  # CoinGecko doesn't provide this
-                "high_price": None,
-                "low_price": None,
+                "price_change_1h": price_change_1h,
+                "price_change_24h": price_change_24h,
+                "volume_24h": volume_24h,
+                "volume_base_24h": volume_24h / price if price > 0 else 0,
+                "trade_count_24h": None,
+                "high_price": high_24h,
+                "low_price": low_24h,
             })
 
-        return results
-
-    async def collect_all(self) -> int:
-        """Collect price/volume data for all tokens"""
-        tokens = await get_all_tokens()
-        all_data = []
-
-        for token in tokens:
-            data = await self.collect_token_data(token)
-            all_data.extend(data)
-            # Rate limiting: ~30 requests per minute to be safe
-            await asyncio.sleep(2)
+            logger.debug(f"Collected {symbol}: ${price:.4f}, vol: ${volume_24h:,.0f}")
 
         # Batch insert
         if all_data:
             await self._insert_price_volume_data(all_data)
 
-        logger.info(f"Collected {len(all_data)} price/volume records")
+        logger.info(f"Collected {len(all_data)} price/volume records (1 API call)")
         return len(all_data)
 
     async def _insert_price_volume_data(self, data: List[Dict[str, Any]]):
@@ -158,8 +172,12 @@ class PriceVolumeCollector:
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (time, token_id, exchange_id) DO UPDATE SET
                 price = EXCLUDED.price,
+                price_change_1h = EXCLUDED.price_change_1h,
+                price_change_24h = EXCLUDED.price_change_24h,
                 volume_24h = EXCLUDED.volume_24h,
-                volume_base_24h = EXCLUDED.volume_base_24h
+                volume_base_24h = EXCLUDED.volume_base_24h,
+                high_price = EXCLUDED.high_price,
+                low_price = EXCLUDED.low_price
         """
 
         args = [
@@ -179,7 +197,7 @@ async def run_collector():
     from config.settings import COLLECTION_INTERVALS
 
     interval = COLLECTION_INTERVALS["price_volume"]
-    logger.info(f"Starting price/volume collector (interval: {interval}s)")
+    logger.info(f"Starting price/volume collector (interval: {interval}s, TOP 20 tokens, BATCH mode)")
 
     while True:
         try:
