@@ -59,7 +59,7 @@ async def run_all_services():
         asyncio.create_task(run_spread_monitor(), name="spread_monitor"),
         asyncio.create_task(run_liquidity_analyzer(), name="liquidity_analyzer"),
         asyncio.create_task(run_holder_tracker(), name="holder_tracker"),
-        asyncio.create_task(run_social_tracker(), name="social_tracker"),
+        # asyncio.create_task(run_social_tracker(), name="social_tracker"),  # Disabled - use social_signal_tracker instead
         asyncio.create_task(run_aggregator(), name="aggregator"),
         asyncio.create_task(run_correlation_engine(), name="correlation_engine"),
         asyncio.create_task(run_health_scorer(), name="health_scorer"),

@@ -26,7 +26,6 @@ class LiquidityAnalyzer:
     async def __aenter__(self):
         self.session = aiohttp.ClientSession(
             headers={
-                "x-cg-pro-api-key": self.api_key,
                 "Accept": "application/json",
             }
         )
@@ -36,12 +35,18 @@ class LiquidityAnalyzer:
         if self.session:
             await self.session.close()
 
+    def _add_api_key(self, params: dict) -> dict:
+        """Add API key to request params"""
+        if self.api_key:
+            params["x_cg_pro_api_key"] = self.api_key
+        return params
+
     async def fetch_coin_tickers(self, coingecko_id: str) -> List[Dict[str, Any]]:
         """Fetch tickers with depth data (cost to move price)"""
         url = f"{self.base_url}/coins/{coingecko_id}/tickers"
-        params = {
+        params = self._add_api_key({
             "depth": "true",
-        }
+        })
 
         try:
             async with self.session.get(url, params=params) as resp:

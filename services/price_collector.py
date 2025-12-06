@@ -26,11 +26,16 @@ class PriceVolumeCollector:
     async def __aenter__(self):
         self.session = aiohttp.ClientSession(
             headers={
-                "x-cg-pro-api-key": self.api_key,
                 "Accept": "application/json",
             }
         )
         return self
+
+    def _add_api_key(self, params: dict) -> dict:
+        """Add API key to request params"""
+        if self.api_key:
+            params["x_cg_pro_api_key"] = self.api_key
+        return params
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
@@ -39,10 +44,10 @@ class PriceVolumeCollector:
     async def fetch_coin_tickers(self, coingecko_id: str) -> List[Dict[str, Any]]:
         """Fetch all exchange tickers for a coin"""
         url = f"{self.base_url}/coins/{coingecko_id}/tickers"
-        params = {
+        params = self._add_api_key({
             "include_exchange_logo": "false",
             "depth": "true",  # Include order book depth
-        }
+        })
 
         try:
             async with self.session.get(url, params=params) as resp:
@@ -59,12 +64,12 @@ class PriceVolumeCollector:
     async def fetch_coin_market_data(self, coingecko_id: str) -> Optional[Dict[str, Any]]:
         """Fetch market data including market cap"""
         url = f"{self.base_url}/coins/{coingecko_id}"
-        params = {
+        params = self._add_api_key({
             "localization": "false",
             "tickers": "false",
             "community_data": "false",
             "developer_data": "false",
-        }
+        })
 
         try:
             async with self.session.get(url, params=params) as resp:

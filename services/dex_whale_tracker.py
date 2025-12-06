@@ -97,23 +97,49 @@ class ChilizChainClient:
             data = log['data']
             topics = log['topics']
 
+            # Handle HexBytes or string for topics
+            def to_hex_str(val):
+                if hasattr(val, 'hex'):
+                    return val.hex()
+                return str(val)
+
             # Sender is first indexed param
-            sender = '0x' + topics[1].hex()[-40:]
+            sender = '0x' + to_hex_str(topics[1])[-40:]
             # Recipient is second indexed param
-            to_address = '0x' + topics[2].hex()[-40:]
+            to_address = '0x' + to_hex_str(topics[2])[-40:]
+
+            # Handle HexBytes or string for data
+            if hasattr(data, 'hex'):
+                data_bytes = bytes(data)
+            elif isinstance(data, str) and data.startswith('0x'):
+                data_bytes = bytes.fromhex(data[2:])
+            elif isinstance(data, bytes):
+                data_bytes = data
+            else:
+                data_bytes = bytes.fromhex(str(data))
 
             # Decode non-indexed data (amounts)
             amounts = self.w3.codec.decode(
                 ['uint256', 'uint256', 'uint256', 'uint256'],
-                bytes.fromhex(data[2:])  # Remove 0x prefix
+                data_bytes
             )
 
             amount0_in, amount1_in, amount0_out, amount1_out = amounts
 
+            # Handle transactionHash - could be HexBytes or string
+            tx_hash = log['transactionHash']
+            if hasattr(tx_hash, 'hex'):
+                tx_hash = tx_hash.hex()
+
+            # Handle pool address
+            pool_address = log['address']
+            if hasattr(pool_address, 'lower'):
+                pool_address = pool_address.lower()
+
             return {
-                'tx_hash': log['transactionHash'].hex(),
+                'tx_hash': tx_hash,
                 'block_number': log['blockNumber'],
-                'pool_address': log['address'],
+                'pool_address': pool_address,
                 'sender': sender,
                 'to_address': to_address,
                 'amount0_in': amount0_in,
